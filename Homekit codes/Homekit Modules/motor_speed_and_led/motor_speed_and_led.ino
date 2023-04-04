@@ -1,83 +1,11 @@
 #define RED_LED_PIN 9
-#define BLUE_LED_PIN 11
-#define GREEN_LED_PIN 10
+#define BLUE_LED_PIN 10
+#define GREEN_LED_PIN 11
 #define CLOCKWISE_PIN 5
-#define COUNTERCLOCKWISE_PIN 4
-
-// the diffrent state the motor could be in
-enum State
-{
-  forward,
-  backward,
-  coast,
-  halt
-};
-
-class Map
-{
-  // A class that linearly maps between input range of values to output range of values
-public:
-  float input_min_value;
-  float input_max_value;
-  float output_min_value;
-  float output_max_value;
-  float input_scale_size;
-  float output_scale_size;
-  Map(float input_min_value, float input_max_value, float output_min_value, float output_max_value)
-  {
-    this->input_min_value = input_min_value;
-    this->input_max_value = input_max_value;
-    this->output_min_value = output_min_value;
-    this->output_max_value = output_max_value;
-    this->input_scale_size = input_max_value - input_min_value;
-    this->output_scale_size = output_max_value - output_min_value;
-  }
-  float map_value(float input_value)
-  {
-    // remap the analog value to a value between 0 to 1
-    float zero_to_one_scale = (input_value - this->input_min_value) / this->input_scale_size;
-    float voltage_value = zero_to_one_scale * this->output_scale_size + this->input_min_value;
-    return voltage_value;
-  }
-};
-
-class Motor
-{
-    // Handle the motor speed and state
-public:
-  int clockwise_pin, counter_clockwise_pin;
-  Motor(int clockwise_pin, int counter_clockwise_pin)
-  {
-    this->clockwise_pin = clockwise_pin;
-    this->counter_clockwise_pin = counter_clockwise_pin;
-    pinMode(this->clockwise_pin, OUTPUT);
-    pinMode(this->counter_clockwise_pin, OUTPUT);
-  }
-
-  void update(int state, int speed)
-  {
-    switch (state)
-    {
-    case State::forward:
-      digitalWrite(this->counter_clockwise_pin, LOW);
-      analogWrite(this->clockwise_pin, speed);
-      break;
-    case State::backward:
-    
-      digitalWrite(this->clockwise_pin, LOW);
-      analogWrite(this->counter_clockwise_pin, speed);
-      break;
-    case State::halt:
-digitalWrite(this->counter_clockwise_pin, HIGH);
-digitalWrite(this->clockwise_pin, HIGH);
-    break;
-    default:
-    // the default is coast
-      digitalWrite(this->counter_clockwise_pin, LOW);
-      digitalWrite(this->clockwise_pin, LOW);
-    }
-  }
-};
+#define COUNTERCLOCKWISE_PIN 6
+#include "../src/motor/motor.h"
+#include "../src/mapper/mapper.h"
+using namespace std;
 
 class SensorHandler
 {

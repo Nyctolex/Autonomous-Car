@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "sketch": "motor_speed_and_led\\motor_speed_and_led.ino",
+    "port": "COM7"
+}
