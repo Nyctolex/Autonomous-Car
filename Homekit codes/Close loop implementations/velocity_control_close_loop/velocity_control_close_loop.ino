@@ -159,28 +159,28 @@ public:
     static const int speendMinValue = 0;
     static const int speedMaxValue = 255;
     int scaleSize = sensorMaxValue - sensorMinValue;
-    int MiddleStartThreshole, MiddleEndThreshole;
+    int middleStartThreshole, middleEndThreshole;
     Map *SpeedScaler;
     byte SensorPin;
     SensorHandler(byte sensor_pin, float middleThreshole)
     {
         float middleValue = (sensorMinValue + sensorMaxValue) / 2;
-        MiddleStartThreshole = (int)((float)middleValue - (float)scaleSize * middleThreshole / 2);
-        MiddleEndThreshole = (int)((float)middleValue + (float)scaleSize * middleThreshole / 2);
+        middleStartThreshole = (int)((float)middleValue - (float)scaleSize * middleThreshole / 2);
+        middleEndThreshole = (int)((float)middleValue + (float)scaleSize * middleThreshole / 2);
         int Sensor_pin = sensor_pin;
-        SpeedScaler = new Map(sensorMinValue, MiddleStartThreshole, speendMinValue, speedMaxValue);
+        SpeedScaler = new Map(sensorMinValue, middleStartThreshole, speendMinValue, speedMaxValue);
     }
     int get_speed()
     {
         int sensorValue = analogRead(A0);
         int unscaled_speed;
-        if (sensorValue < MiddleStartThreshole)
+        if (sensorValue < middleStartThreshole)
         {
-            unscaled_speed = MiddleStartThreshole - sensorValue;
+            unscaled_speed = middleStartThreshole - sensorValue;
         }
-        else if (sensorValue > MiddleEndThreshole)
+        else if (sensorValue > middleEndThreshole)
         {
-            unscaled_speed = sensorValue - MiddleEndThreshole;
+            unscaled_speed = sensorValue - middleEndThreshole;
         }
         else
         {
@@ -196,11 +196,11 @@ public:
         if (Serial.availableForWrite() > 0)
         {
         }
-        if (sensorValue < MiddleStartThreshole)
+        if (sensorValue < middleStartThreshole)
         {
             return State::forward;
         }
-        else if (sensorValue > MiddleEndThreshole)
+        else if (sensorValue > middleEndThreshole)
         {
             return State::backward;
         }

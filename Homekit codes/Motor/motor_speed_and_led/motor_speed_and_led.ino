@@ -87,24 +87,24 @@ public:
   static const int speendMinValue = 0;
   static const int speedMaxValue = 255;
   int scaleSize = sensorMaxValue - sensorMinValue;
-  int MiddleStartThreshole, MiddleEndThreshole;
+  int middleStartThreshole, middleEndThreshole;
   Map *SpeedScaler;
   byte SensorPin;
   SensorHandler(byte sensor_pin, float middleThreshole)
   {
     float middleValue = (sensorMinValue + sensorMaxValue) / 2;
-    MiddleStartThreshole = (int)((float)middleValue - (float)scaleSize * middleThreshole / 2);
-    MiddleEndThreshole = (int)((float)middleValue + (float)scaleSize * middleThreshole / 2);
+    middleStartThreshole = (int)((float)middleValue - (float)scaleSize * middleThreshole / 2);
+    middleEndThreshole = (int)((float)middleValue + (float)scaleSize * middleThreshole / 2);
     int Sensor_pin = sensor_pin;
-    SpeedScaler = new Map(sensorMinValue, MiddleStartThreshole, speendMinValue, speedMaxValue);
+    SpeedScaler = new Map(sensorMinValue, middleStartThreshole, speendMinValue, speedMaxValue);
   }
   int get_speed(){
     int sensorValue = analogRead(A0);
     int unscaled_speed;
-    if (sensorValue < MiddleStartThreshole){
-      unscaled_speed = MiddleStartThreshole - sensorValue;
-    } else if (sensorValue > MiddleEndThreshole){
-      unscaled_speed = sensorValue - MiddleEndThreshole;
+    if (sensorValue < middleStartThreshole){
+      unscaled_speed = middleStartThreshole - sensorValue;
+    } else if (sensorValue > middleEndThreshole){
+      unscaled_speed = sensorValue - middleEndThreshole;
     } else {
       unscaled_speed = 0;
     }
@@ -122,11 +122,11 @@ public:
 
 if (Serial.availableForWrite() > 0){
 }
-    if (sensorValue < MiddleStartThreshole)
+    if (sensorValue < middleStartThreshole)
     {
       return State::forward;
     }
-    else if (sensorValue > MiddleEndThreshole)
+    else if (sensorValue > middleEndThreshole)
     {
       return State::backward;
     }
@@ -141,15 +141,15 @@ if (Serial.availableForWrite() > 0){
 class LedHandler
 {
 public:
-  int Forward_led, Backward_led, Stop_led;
+  int forward_led, backward_led, halt_led;
   LedHandler(int forward_led, int backward_led, int stop_led)
   {
-    Forward_led = forward_led;
-    Backward_led = backward_led;
-    Stop_led = stop_led;
-    pinMode(Forward_led, OUTPUT);
-    pinMode(Backward_led, OUTPUT);
-    pinMode(Stop_led, OUTPUT);
+    forward_led = forward_led;
+    backward_led = backward_led;
+    halt_led = stop_led;
+    pinMode(forward_led, OUTPUT);
+    pinMode(backward_led, OUTPUT);
+    pinMode(halt_led, OUTPUT);
   }
 
   void update(int state)
@@ -157,19 +157,19 @@ public:
     switch (state)
     {
     case State::forward:
-      digitalWrite(Forward_led, HIGH);
-      digitalWrite(Backward_led, LOW);
-      digitalWrite(Stop_led, LOW);
+      digitalWrite(forward_led, HIGH);
+      digitalWrite(backward_led, LOW);
+      digitalWrite(halt_led, LOW);
       break;
     case State::backward:
-      digitalWrite(Forward_led, LOW);
-      digitalWrite(Backward_led, HIGH);
-      digitalWrite(Stop_led, LOW);
+      digitalWrite(forward_led, LOW);
+      digitalWrite(backward_led, HIGH);
+      digitalWrite(halt_led, LOW);
       break;
     default:
-      digitalWrite(Forward_led, LOW);
-      digitalWrite(Backward_led, LOW);
-      digitalWrite(Stop_led, HIGH);
+      digitalWrite(forward_led, LOW);
+      digitalWrite(backward_led, LOW);
+      digitalWrite(halt_led, HIGH);
     }
   }
 };

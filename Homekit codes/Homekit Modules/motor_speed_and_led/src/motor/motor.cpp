@@ -1,6 +1,14 @@
 #include "motor.h"
 
-
+  int Motor::reverse_state(int state){
+    if (state == State::forward)
+      return State::backward;
+    else if (state == State::backward)
+      return State::forward;
+    else if (state == State::halt)
+      return State::coast;
+    return State::halt;
+  }
 
   Motor::Motor(int clockwise_pin, int counter_clockwise_pin)
   {
@@ -12,6 +20,11 @@
 
   void Motor::update(int state, int speed)
   {
+    // if the speed is negative, reverse direction
+    if (speed < 0){
+      state = Motor::reverse_state(state);
+      speed = -1*speed;
+    }
     switch (state)
     {
     case State::forward:

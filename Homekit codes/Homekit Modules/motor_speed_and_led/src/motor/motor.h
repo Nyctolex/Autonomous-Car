@@ -8,7 +8,7 @@ class Motor
 public:
   int clockwise_pin, counter_clockwise_pin;
   Motor(int clockwise_pin, int counter_clockwise_pin);
-
+  static int reverse_state(int state);
   void update(int state, int speed);
 };
 
