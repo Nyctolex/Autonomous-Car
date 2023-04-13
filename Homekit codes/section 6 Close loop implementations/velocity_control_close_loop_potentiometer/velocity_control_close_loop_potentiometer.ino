@@ -1,6 +1,6 @@
 #include "src/homekitModules.h"
-class MagneticEncoder
 
+class MagneticEncoder
 {
 public:
     static volatile bool switchChanged; // declare
@@ -33,11 +33,6 @@ public:
         encoderPreviousCount = encoderCounts;
         previous_millis = millis();
         return rpm;
-    }
-
-      static int get_position()
-    {
-        return encoderCounts;
     }
 
     // Encoder ISR functions - Interupt Service Routine
@@ -75,6 +70,7 @@ public:
     } // End EncoderB ISR
 };
 
+
 // define all class varibles
 volatile bool MagneticEncoder::switchChanged;
 volatile int MagneticEncoder::encoderCounts;
@@ -86,41 +82,46 @@ MagneticEncoder magneticSensor; // make an instance of myClass
 Motor *motor;
 SensorHandler *sensor;
 PID_Contrller *controller;
-#define NUM_LABELS 4
-String LABELS[NUM_LABELS] = {"Wanted_value", "RPM", "error"};
+#define NUM_LABELS 3
+String LABELS[NUM_LABELS] = {"reference_signal", "RPM", "PWM"};
 Plotter *plotter;
+double rpm_speed;
 int speed;
-int wanted_value = 0;
+double reference_signal = 0;
 void setup()
 {
-  speed = 0;
     motor = new Motor(CLOCKWISE_PIN, COUNTERCLOCKWISE_PIN);
     motor->update(State::coast, 0);
     sensor = new SensorHandler(A0, 0.3);
-    controller = new PID_Contrller(2,10,0,(double)wanted_value,-70,70);
+    controller = new PID_Contrller(2,1000,0,reference_signal,-255,255);
     plotter = new Plotter(LABELS, NUM_LABELS);
     // initialize serial communication at 115200 bits per second:
     Serial.begin(115200);
     magneticSensor.attach(ENCODER_PINA, ENCODER_PINB);
     magneticSensor.begin();
+    speed = 0;
+    motor->update(State::forward, speed);
+    for (int i=0;i<20;i++){
+          int values[] = {0, 0};
 
-    
+    plotter->plot(values);
+    delay(50);
+    }
 }
 
 // the loop routine runs over and over again forever:
 void loop()
 {
-  
     // int speed = sensor->get_speed();
     // int state = sensor->get_state();
-    // wanted_value = sensor->get_speed();
-    int pos = (int)magneticSensor.get_position();
-    double pid_value = controller->next(pos);
-    int error_to_pid = (int) ((pid_value - speed)*0.05);
+    reference_signal = (double)sensor->get_speed();
+    controller->target_value = reference_signal;
+    double rpm_speed = (double)magneticSensor.rpm();
+    double pid_value = controller->next(rpm_speed);
+    int error_to_pid = (int) ((pid_value - speed)*0.3);
     speed += error_to_pid;
-    motor->update(State::forward, (int)speed);
-    int values[] = {(int)wanted_value,  (int)pos, (int)(pid_value)};
-
+    motor->update(State::forward, speed);
+    int values[] = {(int)reference_signal,  (int)rpm_speed, (int)speed };
     plotter->plot(values);
-    delay(10);// delay in between reads for stability
+    delay(100);// delay in between reads for stability
 }

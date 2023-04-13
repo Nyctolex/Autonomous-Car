@@ -1,4 +1,4 @@
-#include "PIDController.h"
+#include "PIDController.h""
 
 PID_Contrller::PID_Contrller(double kp, double ki, double kd, double target_value, double target_min_value, double target_max_value){
   this->Kp = kp;
@@ -44,13 +44,12 @@ this->inetgrated_error += this->dt*error_value;
   this->previous_error = error_value; // for the next cycle, remember what this cycle's error was
   // map the pid value to a new angle for the servo to go to
   double new_value = pid_value;//this->mapper->map_value(pid_value);
-  this->prev_time = millis();
   if (new_value < this->target_min_value){
     return this->target_min_value;
   }
   if (new_value > this->target_max_value){
     return this->target_max_value;
   }
-  
+  this->prev_time = millis();
   return new_value;
 }

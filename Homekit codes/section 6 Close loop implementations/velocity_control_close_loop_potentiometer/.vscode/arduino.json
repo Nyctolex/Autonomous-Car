@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "port": "COM6",
+    "sketch": "velocity_control_close_loop_potentiometer.ino"
+}

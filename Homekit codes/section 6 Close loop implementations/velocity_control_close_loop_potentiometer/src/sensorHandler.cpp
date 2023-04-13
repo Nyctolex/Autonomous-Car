@@ -12,12 +12,13 @@
     int sensorValue = analogRead(this->sensorPin);
     int unscaled_speed;
     if (sensorValue < middleStartThreshole){
-      unscaled_speed = middleStartThreshole - sensorValue;
+      unscaled_speed = sensorValue - middleStartThreshole;
     } else if (sensorValue > middleEndThreshole){
       unscaled_speed = sensorValue - middleEndThreshole;
     } else {
       unscaled_speed = 0;
     }
+
     int scale_speed = SpeedScaler->map_value(unscaled_speed);
     return scale_speed;
   }
@@ -36,5 +37,5 @@
     {
       return State::coast;
     }
-// 
+
   }

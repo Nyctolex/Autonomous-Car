@@ -20,6 +20,7 @@ Map *mapper;
 PID_Contrller(double kp, double ki, double kd, double target_value, double target_min_value, double target_max_value);
 void reset_controller();
 double next(double sensor_output);
+
 };
 
 #endif
