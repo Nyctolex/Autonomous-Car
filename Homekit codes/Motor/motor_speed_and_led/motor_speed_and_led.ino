@@ -1,83 +1,12 @@
 #define RED_LED_PIN 9
-#define BLUE_LED_PIN 11
-#define GREEN_LED_PIN 10
+#define BLUE_LED_PIN 10
+#define GREEN_LED_PIN 11
 #define CLOCKWISE_PIN 5
-#define COUNTERCLOCKWISE_PIN 4
-
-// the diffrent state the motor could be in
-enum State
-{
-  forward,
-  backward,
-  coast,
-  halt
-};
-
-class Map
-{
-  // A class that linearly maps between input range of values to output range of values
-public:
-  float input_min_value;
-  float input_max_value;
-  float output_min_value;
-  float output_max_value;
-  float input_scale_size;
-  float output_scale_size;
-  Map(float input_min_value, float input_max_value, float output_min_value, float output_max_value)
-  {
-    this->input_min_value = input_min_value;
-    this->input_max_value = input_max_value;
-    this->output_min_value = output_min_value;
-    this->output_max_value = output_max_value;
-    this->input_scale_size = input_max_value - input_min_value;
-    this->output_scale_size = output_max_value - output_min_value;
-  }
-  float map_value(float input_value)
-  {
-    // remap the analog value to a value between 0 to 1
-    float zero_to_one_scale = (input_value - this->input_min_value) / this->input_scale_size;
-    float voltage_value = zero_to_one_scale * this->output_scale_size + this->input_min_value;
-    return voltage_value;
-  }
-};
-
-class Motor
-{
-    // Handle the motor speed and state
-public:
-  int clockwise_pin, counter_clockwise_pin;
-  Motor(int clockwise_pin, int counter_clockwise_pin)
-  {
-    this->clockwise_pin = clockwise_pin;
-    this->counter_clockwise_pin = counter_clockwise_pin;
-    pinMode(this->clockwise_pin, OUTPUT);
-    pinMode(this->counter_clockwise_pin, OUTPUT);
-  }
-
-  void update(int state, int speed)
-  {
-    switch (state)
-    {
-    case State::forward:
-      digitalWrite(this->counter_clockwise_pin, LOW);
-      analogWrite(this->clockwise_pin, speed);
-      break;
-    case State::backward:
-    
-      digitalWrite(this->clockwise_pin, LOW);
-      analogWrite(this->counter_clockwise_pin, speed);
-      break;
-    case State::halt:
-digitalWrite(this->counter_clockwise_pin, HIGH);
-digitalWrite(this->clockwise_pin, HIGH);
-    break;
-    default:
-    // the default is coast
-      digitalWrite(this->counter_clockwise_pin, LOW);
-      digitalWrite(this->clockwise_pin, LOW);
-    }
-  }
-};
+#define COUNTERCLOCKWISE_PIN 6
+#include "src/motor/motor.h"
+#include "src/motor/ledHandler.h"
+#include "src/mapper/mapper.h"
+using namespace std;
 
 class SensorHandler
 {
@@ -88,40 +17,41 @@ public:
   static const int speedMaxValue = 255;
   int scaleSize = sensorMaxValue - sensorMinValue;
   int middleStartThreshole, middleEndThreshole;
-  Map *SpeedScaler;
+  Map *speedScaler;
   byte SensorPin;
   SensorHandler(byte sensor_pin, float middleThreshole)
   {
     float middleValue = (sensorMinValue + sensorMaxValue) / 2;
-    middleStartThreshole = (int)((float)middleValue - (float)scaleSize * middleThreshole / 2);
-    middleEndThreshole = (int)((float)middleValue + (float)scaleSize * middleThreshole / 2);
+    middleStartThreshole = (int)((float)middleValue - (float)this->scaleSize * middleThreshole / 2);
+    middleEndThreshole = (int)((float)middleValue + (float)this->scaleSize * middleThreshole / 2);
+    int maxValidScaleValue = max(middleStartThreshole, this->sensorMaxValue - middleEndThreshole);
     int Sensor_pin = sensor_pin;
-    SpeedScaler = new Map(sensorMinValue, middleStartThreshole, speendMinValue, speedMaxValue);
+    this->speedScaler = new Map(sensorMinValue, maxValidScaleValue, speendMinValue, speedMaxValue);
   }
-  int get_speed(){
+  int get_speed()
+  {
     int sensorValue = analogRead(A0);
     int unscaled_speed;
-    if (sensorValue < middleStartThreshole){
-      unscaled_speed = middleStartThreshole - sensorValue;
-    } else if (sensorValue > middleEndThreshole){
-      unscaled_speed = sensorValue - middleEndThreshole;
-    } else {
+    if (sensorValue < this->middleStartThreshole)
+    {
+      unscaled_speed = this->middleStartThreshole - sensorValue;
+    }
+    else if (sensorValue > this->middleEndThreshole)
+    {
+      unscaled_speed = sensorValue - this->middleEndThreshole;
+    }
+    else
+    {
       unscaled_speed = 0;
     }
-    int scale_speed = (int)SpeedScaler->map_value((float)unscaled_speed);
-
-    if (Serial.availableForWrite() > 0){
-  Serial.print(",");
-  Serial.println(unscaled_speed);
-}
+    int scale_speed = this->speedScaler->map_value(unscaled_speed);
     return scale_speed;
   }
+
   int get_state()
   {
     int sensorValue = analogRead(A0);
 
-if (Serial.availableForWrite() > 0){
-}
     if (sensorValue < middleStartThreshole)
     {
       return State::forward;
@@ -134,46 +64,8 @@ if (Serial.availableForWrite() > 0){
     {
       return State::coast;
     }
-
   }
 };
-
-class LedHandler
-{
-public:
-  int forward_led, backward_led, halt_led;
-  LedHandler(int forward_led, int backward_led, int stop_led)
-  {
-    forward_led = forward_led;
-    backward_led = backward_led;
-    halt_led = stop_led;
-    pinMode(forward_led, OUTPUT);
-    pinMode(backward_led, OUTPUT);
-    pinMode(halt_led, OUTPUT);
-  }
-
-  void update(int state)
-  {
-    switch (state)
-    {
-    case State::forward:
-      digitalWrite(forward_led, HIGH);
-      digitalWrite(backward_led, LOW);
-      digitalWrite(halt_led, LOW);
-      break;
-    case State::backward:
-      digitalWrite(forward_led, LOW);
-      digitalWrite(backward_led, HIGH);
-      digitalWrite(halt_led, LOW);
-      break;
-    default:
-      digitalWrite(forward_led, LOW);
-      digitalWrite(backward_led, LOW);
-      digitalWrite(halt_led, HIGH);
-    }
-  }
-};
-
 
 Motor *motor;
 LedHandler *leds;
@@ -183,14 +75,13 @@ void setup()
   Serial.begin(9600);
   motor = new Motor(CLOCKWISE_PIN, COUNTERCLOCKWISE_PIN);
   motor->update(State::coast, 0);
-  leds = new LedHandler(BLUE_LED_PIN, RED_LED_PIN,GREEN_LED_PIN );
+  leds = new LedHandler(BLUE_LED_PIN, RED_LED_PIN, GREEN_LED_PIN);
   sensor = new SensorHandler(A0, 0.3);
 }
 
-// the loop routine runs over and over again forever:
 void loop()
 {
-int speed = sensor->get_speed();
+  int speed = sensor->get_speed();
   int state = sensor->get_state();
   motor->update(state, speed);
   leds->update(state);
