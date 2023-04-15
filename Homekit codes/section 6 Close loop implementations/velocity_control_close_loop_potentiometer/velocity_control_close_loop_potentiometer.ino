@@ -82,8 +82,8 @@ MagneticEncoder magneticSensor; // make an instance of myClass
 Motor *motor;
 SensorHandler *sensor;
 PID_Contrller *controller;
-#define NUM_LABELS 3
-String LABELS[NUM_LABELS] = {"reference_signal", "RPM", "PWM"};
+#define NUM_LABELS 2
+String LABELS[NUM_LABELS] = {"reference_signal", "RPM"};
 Plotter *plotter;
 double rpm_speed;
 int speed;
@@ -93,7 +93,7 @@ void setup()
     motor = new Motor(CLOCKWISE_PIN, COUNTERCLOCKWISE_PIN);
     motor->update(State::coast, 0);
     sensor = new SensorHandler(A0, 0.3);
-    controller = new PID_Contrller(2,1000,0,reference_signal,-255,255);
+    controller = new PID_Contrller(1.2,1000,0,reference_signal,-255,255);
     plotter = new Plotter(LABELS, NUM_LABELS);
     // initialize serial communication at 115200 bits per second:
     Serial.begin(115200);
@@ -120,8 +120,8 @@ void loop()
     double pid_value = controller->next(rpm_speed);
     int error_to_pid = (int) ((pid_value - speed)*0.3);
     speed += error_to_pid;
-    motor->update(State::forward, speed);
-    int values[] = {(int)reference_signal,  (int)rpm_speed, (int)speed };
+    motor->update(State::forward, pid_value);
+    int values[] = {(int)reference_signal,  (int)rpm_speed };
     plotter->plot(values);
     delay(100);// delay in between reads for stability
 }

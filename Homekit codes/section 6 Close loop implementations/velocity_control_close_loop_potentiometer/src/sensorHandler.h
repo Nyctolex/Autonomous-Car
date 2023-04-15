@@ -11,7 +11,7 @@ public:
   static const int sensorMinValue = 0;
   static const int sensorMaxValue = 1023;
   static const int speendMinValue = 0;
-  static const int speedMaxValue = 300;
+  static const int speedMaxValue = 350;
   int scaleSize = sensorMaxValue - sensorMinValue;
   int middleStartThreshole, middleEndThreshole;
   Map *SpeedScaler;

@@ -12,7 +12,7 @@
     int sensorValue = analogRead(this->sensorPin);
     int unscaled_speed;
     if (sensorValue < middleStartThreshole){
-      unscaled_speed = middleStartThreshole - sensorValue;
+      unscaled_speed = sensorValue - middleStartThreshole;
     } else if (sensorValue > middleEndThreshole){
       unscaled_speed = sensorValue - middleEndThreshole;
     } else {

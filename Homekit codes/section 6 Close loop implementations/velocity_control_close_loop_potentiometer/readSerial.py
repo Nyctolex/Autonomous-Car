@@ -88,7 +88,7 @@ class Plotter:
 
 
 def main():
-    plotter = Plotter(50)
+    plotter = Plotter(200)
     plotter.run()
   
 if __name__ == "__main__":
