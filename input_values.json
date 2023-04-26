@@ -1,0 +1,17 @@
+{
+  "left_motor": leftMotor,
+  "right_motor": rightMotor,
+  "battery": battery,
+  "dt_time": dt_time,
+  "position": {
+    "x": posx,
+    "y": posy
+  },
+  "orientation": {
+    "theta": theta*57.295
+  },
+  "gyro": {
+    "gyroz": gyroz,
+    "gyro_angle": gyroAngle
+  }
+}
