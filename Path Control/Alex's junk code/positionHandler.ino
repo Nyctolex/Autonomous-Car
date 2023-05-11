@@ -16,7 +16,7 @@ Zumo32U4IMU imu;
 #define WHEELS_DISTANCE 98    // Distance between tracks
 #define WHEEL_DIAMETER 37.5   // Wheels diameter measured 38.5
 #define ENCODER_PPR 12        // Encoder pulses per revolution
-#define GYRO_SCALE 0.07        // 70 mdps/LSB 
+#define GYRO_SCALE (90.0/1283.0 / 717.0)*90        // 70 mdps/LSB 
 float encoder2dist = WHEEL_DIAMETER*3.14/(ENCODER_PPR*GEAR_RATIO);  // conversition of encoder pulses to distance in mm
 
 //
