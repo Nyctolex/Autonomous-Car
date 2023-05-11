@@ -19,7 +19,7 @@ Zumo32U4IMU imu;
 #define GYRO_SCALE 0.07        // 70 mdps/LSB 
 float encoder2dist = WHEEL_DIAMETER*3.14/(ENCODER_PPR*GEAR_RATIO);  // conversition of encoder pulses to distance in mm
 
-
+//
 class GyroHandler
 {
     private:
@@ -32,19 +32,31 @@ class GyroHandler
 
 public:
  float dt_time;
+ 
     GyroHandler()
     {
-        imu.init();
-        imu.enableDefault();
-        imu.configureForTurnSensing();
+      if (!imu.init())
+  {
+    // Failed to detect the compass.
+    ledRed(1);
+    while(1)
+    {
+      Serial.println(F("Failed to initialize IMU sensors."));
+      delay(100);
+    }
+  }
+
+  imu.enableDefault();
+//        imu.configureForTurnSensing();
 
         this->gyroAngle = 0;
-        this->gyroOffset_z = -16;
+//        this->gyroOffset_z = -16;
         this->gyroz = 0;
         // take time stamp
         this->lastMillis = millis();
         this->lastMicros = micros();
         this->gyroOffset();
+        this->angleOffset();
     }
 
     // gyro calibration
@@ -66,12 +78,26 @@ public:
         this->gyroOffset_z = total / 1024;
     }
 
+
+        // gyro calibration
+    void angleOffset()
+    {
+        delay(1); // delay before starting gyro readings for offset
+        float total = 0;
+        for (uint16_t i = 0; i < 1024; i++)
+        {
+            total += this->gyroIntegration(true);
+        }
+        float angleOffset_z = total / 1024;
+        this->gyroAngle -= angleOffset_z;
+    }
+
     // gyroIntegration
     float gyroIntegration(bool motorsState)
     {
         this->update_dt();
         imu.readGyro();
-        this->gyroz = ((float)(imu.g.z - (int16_t)this->gyroOffset_z)) * GYRO_SCALE;
+        this->gyroz = ((float)(imu.g.z - (float)this->gyroOffset_z))* GYRO_SCALE;
         if (motorsState)
             this->gyroAngle += (gyroz * this->dt_time); // integrate when in motion
         return this->gyroAngle;
@@ -123,7 +149,9 @@ GyroHandler * gyroHandler;
 boolean motorsState = 0;
 
 void setup(){
+  Wire.begin();
     gyroHandler = new GyroHandler();
+   
     odometryHandler = new OdometryHandler();
     // initialize serial:
   Serial.begin(9600);
@@ -133,30 +161,30 @@ void setup(){
 void loop(){
 
      // update motors 
-     int leftMotor = 0;
-     int rightMotor = 0;
+     int leftMotor = 100;
+     int rightMotor = 100;
     motors.setLeftSpeed(leftMotor);
     motors.setRightSpeed(rightMotor);
     motorsState = (leftMotor || rightMotor) ==  0 ? 0 : 1; //  check if motors are still
-    float gyroAngle = gyroHandler->gyroIntegration();
-    odometryHandler->odometry();
-
-
+    float gyroAngle = gyroHandler->gyroIntegration(motorsState);
+    odometryHandler->odometry(motorsState);
 
 
 
     // send a response
-    Serial.print(leftMotor);
-    Serial.print(" , ");
-    Serial.print(rightMotor);
-    Serial.print(" , ");
-    Serial.print(gyroHandler->dt_time);
-    Serial.print(" , ");
-    Serial.print(odometryHandler->posx);
-    Serial.print(" , ");
-    Serial.print(odometryHandler->posy);
-    Serial.print(" , ");
-    Serial.print(odometryHandler->theta*57.295);
-    Serial.print(" , ");
-    Serial.println(gyroAngle);
+//    Serial.print(leftMotor);
+//    Serial.print(" , ");
+//    Serial.print(rightMotor);
+//    Serial.print(" , ");
+//    Serial.print(gyroHandler->dt_time);
+//    Serial.print(" , ");
+//    Serial.print(odometryHandler->posx);
+//    Serial.print(" , ");
+//    Serial.print(odometryHandler->posy);
+//    Serial.print(" , ");
+//    Serial.print(odometryHandler->theta*57.295);
+//    Serial.print(" , ");
+    Serial.print(gyroAngle);
+Serial.println("");
+
 }
