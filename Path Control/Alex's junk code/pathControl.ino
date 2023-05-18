@@ -17,7 +17,7 @@ Zumo32U4IMU imu;
 #define WHEELS_DISTANCE 98                                               // Distance between tracks
 #define WHEEL_DIAMETER 37.5                                              // Wheels diameter measured 38.5
 #define ENCODER_PPR 12                                                   // Encoder pulses per revolution
-#define GYRO_SCALE (90.0 / 1283.0 / 717.0) * 90                          // 70 mdps/LSB
+#define GYRO_SCALE 360 / 50829.33                                         // 70 mdps/LSB
 float encoder2dist = WHEEL_DIAMETER * 3.14 / (ENCODER_PPR * GEAR_RATIO); // conversition of encoder pulses to distance in mm
 
 class Vector2D
@@ -137,11 +137,9 @@ public:
         {
             // Failed to detect the compass.
             ledRed(1);
-            while (1)
-            {
+
                 Serial.println(F("Failed to initialize IMU sensors."));
                 delay(100);
-            }
         }
 
         imu.enableDefault();
@@ -323,64 +321,86 @@ public:
     }
 };
 
+
+
 void move_forward(PositionHandler *positionHandler, float distance)
 {
-    float Ts = 0.01;
-    float distance_control_signal = 0.0; // Initialize the control signal to 0
-    float kp = 0.1;                      // Proportional gain
-    float ki = 0.01;                     // Integral gain
-    float kd = 0.0;                      // Derivative gain
-    float integral = 0.0;                // Integral accumulator
-    float alpha = 0.1;                   // Filter coefficient
-    float desiredDistance = distance;
-    PIDController distance_pid_controller(kp, ki, kd, alpha);
-    int rightMotor = 0;
-    int leftMotor = 0;
-    bool motorsState = false;
-    Vector2D current_position(positionHandler->getx(motorsState), positionHandler->gety(motorsState));
-    float initialAngle = positionHandler->getTheta(motorsState);
-    Vector2D distanceVector(sin(initialAngle), cos(initialAngle));
-    distanceVector = distanceVector * distance;
+    // float Ts = 0.01;
+    // float distance_control_signal = 0.0; // Initialize the control signal to 0
+    // float kp = 0.1;                      // Proportional gain
+    // float ki = 0.01;                     // Integral gain
+    // float kd = 0.0;                      // Derivative gain
+    // float integral = 0.0;                // Integral accumulator
+    // float alpha = 0.1;                   // Filter coefficient
+    // float desiredDistance = distance;
+    // // PIDController distance_pid_controller(0.1, 0.01, 0, 0.1);
+    // int rightMotor = 0;
+    // int leftMotor = 0;
+    // bool motorsState = false;
+    // Vector2D current_position(positionHandler->getx(motorsState), positionHandler->gety(motorsState));
+    // float initialAngle = positionHandler->getTheta(motorsState);
+    // Vector2D distanceVector(sin(initialAngle), cos(initialAngle));
+    // distanceVector = distanceVector * distance;
 
-    Vector2D desired_position = current_position + distanceVector;
-    distance = (desired_position - current_position).norm();
-    while (distance < 10)
-    {
+    // Vector2D desired_position = current_position + distanceVector;
+    // distance = (desired_position - current_position).norm();
+    // float stime = millis();
+    // while (distance < 10)
+    // {
+    //     if (millis()- stime > 10*1000){
+    //                 break;
+    //     }
+    //     motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
+    //     distance = (desired_position - current_position).norm();
+    //     distance_control_signal = distance_pid_controller.pid_control(desiredDistance, distance);
+    //     leftMotor = (int)distance_control_signal / 2;
+    //     rightMotor = (int)distance_control_signal / 2;
 
-        motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
-        distance = (desired_position - current_position).norm();
-        distance_control_signal = distance_pid_controller.pid_control(desiredDistance, distance);
-        leftMotor = (int)distance_control_signal / 2;
-        rightMotor = (int)distance_control_signal / 2;
-
-        motors.setLeftSpeed(leftMotor);
-        motors.setRightSpeed(rightMotor);
-        delay(Ts);
-    }
+    //     motors.setLeftSpeed(leftMotor);
+    //     motors.setRightSpeed(rightMotor);
+    //     delay(Ts);
+    // }
 }
 
-void turn_degrees(PositionHandler * positionHandler, float degrees, int axis)
+
+
+
+
+/// Start ///
+PositionHandler * positionHandler;
+PIDController distance_pid_controller(0.1, 0.01, 0, 0.1);
+PIDController angle_pid_controller(3, 0.2, 0, 0.1);
+PIDController velocity_pid_controller(400, 0.1, 0, 0.1);
+bool motorsState;
+float gyroAngle, angle_control_signal, actual_velocity, Ts, velocity_control_signal;
+int axis = middle;
+float desired_angle = 90;
+int leftMotor, rightMotor;
+void setup()
 {
-    float Ts = 0.01;
-    float kp = 10;     // Proportional gain
-    float ki = 0.1;    // Integral gain
-    float kd = 0.0;    // Derivative gain
-    float alpha = 0.1; // Filter coefficient
-    PIDController angle_pid_controller(kp, ki, kd, alpha);
-    float angle_control_signal;
-    bool motorsState = false;
-    float gyroAngle = positionHandler->getTheta(motorsState);
-    float desired_angle = gyroAngle + degrees;
-    int rightMotor = 0;
-    int leftMotor = 0;
+    Wire.begin();
+    // initialize serial:
+    Serial.begin(9600);
+    positionHandler = new PositionHandler(true);
+    leftMotor = 0;
+    rightMotor=0;
+    Ts = 0.01;
+    // move_forward(&positionHandler, 10);
+}
 
-    while (abs(gyroAngle - desired_angle) < 1)
-    {
-        motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
-        gyroAngle = positionHandler->getTheta(motorsState);
-        angle_control_signal = angle_pid_controller.pid_control(desired_angle, gyroAngle);
+void loop()
+{
+    motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
+    gyroAngle = positionHandler->getTheta(motorsState);
+    //Serial.println(gyroAngle);
 
-        switch (axis)
+    int16_t leftCount = encoders.getCountsAndResetLeft();
+    int16_t RightCount = encoders.getCountsAndResetRight();
+    actual_velocity = ((leftCount + RightCount) / 2) * encoder2dist / Ts;
+    velocity_control_signal = velocity_pid_controller.pid_control(actual_velocity, 0.05);
+    angle_control_signal = angle_pid_controller.pid_control(desired_angle, gyroAngle);
+
+    switch (axis)
         {
         case right:
             leftMotor = 0;
@@ -399,25 +419,12 @@ void turn_degrees(PositionHandler * positionHandler, float degrees, int axis)
             rightMotor = (int)angle_control_signal / 2;
             break;
         }
+        motors.setLeftSpeed(velocity_control_signal);
+        motors.setRightSpeed(velocity_control_signal);
 
-        motors.setLeftSpeed(leftMotor);
-        motors.setRightSpeed(rightMotor);
-        delay(Ts);
-    }
-}
-
-/// Start ///
-PositionHandler positionHandler(true);
-void setup()
-{
-    Wire.begin();
-    // initialize serial:
-    Serial.begin(9600);
-    turn_degrees(&positionHandler, 90, middle);
-    // move_forward(&positionHandler, 10);
-}
-
-void loop()
-{
-    delay(1000);
+    // turn_degrees(positionHandler, 90, middle);
+    // move_forward(positionHandler, 1000);
+    Serial.println(gyroAngle);
+    Serial.println("In main loop");
+    delay(Ts*1000);
 }
