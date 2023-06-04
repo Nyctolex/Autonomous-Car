@@ -45,6 +45,12 @@ public:
     {
         return Vector2D(x * scalar, y * scalar);
     }
+    
+    float operator&(const Vector2D &other) const
+    {
+
+        return (x * other.x + y * other.y);
+    }
 
     // Norm calculation
     float norm() const

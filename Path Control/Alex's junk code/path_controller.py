@@ -21,7 +21,7 @@ def non_negative_angle(angle: float) -> float:
         return angle
     return 2*np.pi + angle
 
-def inner_angle(v1:np.ndarray[np.float64, np.ndim == 2], v2: np.ndarray = np.array([1,0])):
+def inner_angle(v1, v2 = np.array([1,0])):
     """ Returns the inner angle between v1 and v2. By default, it would be the angle with the x axis"""
     angle1 :float= non_negative_angle(atan2(v1[1], v1[0]))
     if v2 is np.array([1,0]):
@@ -32,10 +32,16 @@ def inner_angle(v1:np.ndarray[np.float64, np.ndim == 2], v2: np.ndarray = np.arr
         return angle
     return 2*np.pi - angle
 
-def next_point_controller(point: np.ndarray[np.float64], position:np.ndarray, velocity_vector:np.ndarray) -> float:
+def next_point_controller(point, position, velocity_vector) -> float:
     """Path controller which return the next direction for the car"""
     pointing_vector = point-position
     angle = inner_angle(velocity_vector, pointing_vector)
     if is_clock_wise_angle(pointing_vector,  velocity_vector):
         return angle
     return -1*angle
+
+
+if __name__ == "__main__":
+    a = np.array([3, -6])
+    b = np.array([-5, 7])
+    print(is_clock_wise_angle(a, b))
