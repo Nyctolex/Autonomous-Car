@@ -246,10 +246,7 @@ enum CarState
 // if it should move as a polygon motion or smooth
 bool polygon = false;
 
-
-
-
-//other intial states
+// other intial states
 int carState = CarState::rotating;
 bool started = false;
 Vector2D initial_pos(0, 0);
@@ -304,7 +301,8 @@ void smooth_motion(float pass_section_threshole = 0.05)
         current_section = getSection(path, section_index);
     }
     new_direction = next_point_controller(current_section.p2, car.position, car.get_velocity_vector());
-    car.set_direction(car.get_direction() + new_direction / 2);
+    if (carState != CarState::rotating)
+        car.set_direction(car.get_direction() + new_direction / 2);
 }
 
 void polygon_motion()
@@ -327,9 +325,6 @@ void polygon_motion()
         if (fmod(abs(car.direction - target_angle), (float)(2 * PI)) < epsilon)
             carState = driving;
     }
-
-    print_vec(car.position);
-    car.update_position(dt);
 }
 
 void loop()

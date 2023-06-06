@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <math.h>
+#include <Wire.h>
+#include <Zumo32U4.h>
+#include <math.h>
 
 #define PI 3.14159265358979323846 /* pi */
 
@@ -18,9 +21,6 @@ float path[PATH_LENGTH][2] = {
 /*
   Odometry && Gyro Integration with teleoperate
 */
-#include <Wire.h>
-#include <Zumo32U4.h>
-#include <math.h>
 
 // zumo classes
 Zumo32U4Encoders encoders;
@@ -491,22 +491,20 @@ private:
     float velocity;
     float target_direction;
     float target_velocity;
+    Vector2D last_position;
+    unsigned long last_time;
 
 public:
     PositionHandler *positionHandler;
     int leftMotor, rightMotor;
     bool motorsState;
-    PIDController distance_pid_controller;
-    PIDController angle_pid_controller;
-    PIDController velocity_pid_controller;
+    PIDController *distance_pid_controller, *angle_pid_controller, *velocity_pid_controller;
     // Constructor
-    Car(const Vector2D &initial_position, float initial_direction, float initial_velocity)
-        : position(initial_position), direction(initial_direction), velocity(initial_velocity) {}
     Car(const Vector2D initial_position, const Vector2D initial_velocity)
     {
-        this->distance_pid_controller = PIDController(0.1, 0.01, 0, 0.1);
-        this->angle_pid_controller = PIDController(3, 0.2, 0, 0.1);
-        this->velocity_pid_controller = PIDController(400, 0.1, 0, 0.1);
+        this->distance_pid_controller =  new PIDController(0.1f, 0.01f, 0.0f, 0.1f);
+        this->angle_pid_controller = new PIDController(3.0f, 0.2f, 0.0f, 0.1f);
+        this->velocity_pid_controller = new PIDController(400, 0.1f, 0.0f, 0.1f);
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
         this->velocity = initial_velocity.norm();
@@ -514,7 +512,8 @@ public:
         this->leftMotor = 0;
         this->rightMotor = 0;
     }
-    Vector2D get_position(){
+    Vector2D get_position()
+    {
         return this->position;
     }
     float get_velocity()
@@ -522,11 +521,11 @@ public:
         return this->velocity;
     }
 
-        float get_direction()
+    float get_direction()
     {
         return this->direction;
     }
-        Vector2D get_velocity_vector() const
+    Vector2D get_velocity_vector() const
     {
         return Vector2D(cos(this->direction), sin(this->direction)) * this->velocity;
     }
@@ -540,21 +539,23 @@ public:
         this->target_direction = theta;
     }
 
-
-
-    void update_position(float dt)
+    void update_position(int axis=rotateAxis::middle)
     {
         motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
         this->direction = positionHandler->getTheta(motorsState);
-        float x = = positionHandler->getx(motorsState);
-        float y = = positionHandler->gety(motorsState);
+        float x = positionHandler->getx(motorsState);
+        float y = positionHandler->gety(motorsState);
+        unsigned long current_time = millis();
+        float dt = (current_time - this->last_time) / 1000.0; // convert to seconds
+        this->last_position = this->position;
         this->position = Vector2D(x, y);
+        this->velocity = abs((this->last_position - this->position).norm() / dt);
 
-        int16_t leftCount = encoders.getCountsAndResetLeft();
-        int16_t RightCount = encoders.getCountsAndResetRight();
-        this->velocity = ((leftCount + RightCount) / 2) * encoder2dist / Ts;
-        float velocity_control_signal = velocity_pid_controller.pid_control(this->velocity, this->target_velocity);
-        float angle_control_signal = angle_pid_controller.pid_control(this->target_direction, this->direction);
+        // int16_t leftCount = encoders.getCountsAndResetLeft();
+        // int16_t RightCount = encoders.getCountsAndResetRight();
+        // this->velocity = ((leftCount + RightCount) / 2) * encoder2dist / dt;
+        float velocity_control_signal = velocity_pid_controller->pid_control(this->velocity, this->target_velocity);
+        float angle_control_signal = angle_pid_controller->pid_control(this->target_direction, this->direction);
 
         switch (axis)
         {
@@ -606,7 +607,6 @@ int section_index = 0;
 Vector2D initial_velocity(-1, 0);
 float velocity = initial_velocity.norm();
 Vector2D current_pos(0, 0);
-float dt = 0.1;
 Car car(initial_pos, initial_velocity);
 Line current_section = getSection(path, section_index);
 float new_direction;
@@ -643,18 +643,19 @@ bool init_connection()
 void smooth_motion(float pass_section_threshole = 0.05)
 {
     // run simulation
-    if (finished(current_section, car.position, section_index))
+    if (finished(current_section, car.get_position(), section_index))
         carState = CarState::done;
 
     // find next section
-    if (about_to_pass_section(current_section, car.position, pass_section_threshole) && ((section_index + 2) < PATH_LENGTH))
+    if (about_to_pass_section(current_section, car.get_position(), pass_section_threshole) && ((section_index + 2) < PATH_LENGTH))
     {
         section_index++;
         carState = CarState::rotating;
         current_section = getSection(path, section_index);
     }
-    new_direction = next_point_controller(current_section.p2, car.position, car.get_velocity_vector());
-    car.set_direction(car.get_direction() + new_direction / 2);
+    new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
+    if (carState != CarState::rotating)
+        car.set_direction(car.get_direction() + new_direction / 2);
 }
 
 void polygon_motion()
@@ -664,51 +665,67 @@ void polygon_motion()
     // set velocity to zero and roatate car
     if (carState == CarState::driving)
     {
-        car.velocity = velocity;
+        car.set_velocity(velocity);
         smooth_motion(0);
     }
     if (carState == CarState::rotating)
     {
         Serial.println("debug: rotating");
-        new_direction = next_point_controller(current_section.p2, car.position, car.get_velocity_vector());
+        new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
         float target_angle = car.get_direction() + new_direction;
-        car.velocity = 0;
+        car.set_velocity(0);
         car.set_direction(target_angle);
-        if (fmod(abs(car.direction - target_angle), (float)(2 * PI)) < epsilon)
+        if (fmod(abs(car.get_direction() - target_angle), (float)(2 * PI)) < epsilon)
             carState = driving;
     }
-
-    print_vec(car.position);
-    car.update_position(dt);
 }
 
-void loop()
-{
-    if (carState != CarState::done)
-    {
+// //uncommen this for position handler checking
+// void loop(){
+//     Serial.print("x: ");
+//     Serial.print(car.positionHandler->getx(true));
+//     Serial.print("y: ");
+//     Serial.print(car.positionHandler->gety(true));
+//     Serial.print("theta: ");
+//     Serial.println(car.positionHandler->getTheta(true));
 
-        if (started)
-        {
-            if (polygon)
-            {
-                polygon_motion();
-            }
-            else
-            {
-                smooth_motion();
-            }
-            car.update_position(dt);
-            print_vec(car.position);
-        }
-        else
-        {
-            init_connection();
-        }
-    }
-    else
-    {
-        Serial.println("done");
-    }
+// }
 
-    delay(10);
-}
+// //uncooment this for to test car
+// void loop(){
+//     car.set_velocity(0);
+//     car.set_direction(PI/2);
+// delay(100);
+// }
+
+// //uncomment this for path controll
+// void loop()
+// {
+//     if (carState != CarState::done)
+//     {
+
+//         if (started)
+//         {
+//             if (polygon)
+//             {
+//                 polygon_motion();
+//             }
+//             else
+//             {
+//                 smooth_motion();
+//             }
+//             car.update_position();
+//             print_vec(car.get_position());
+//         }
+//         else
+//         {
+//             init_connection();
+//         }
+//     }
+//     else
+//     {
+//         Serial.println("done");
+//     }
+
+//     delay(10);
+// }
