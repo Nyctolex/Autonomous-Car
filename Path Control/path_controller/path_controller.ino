@@ -8,15 +8,14 @@
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
-#define PATH_LENGTH 6
+#define PATH_LENGTH 3
 
-float path[PATH_LENGTH][2] = {
+float path[PATH_LENGTH][4] = {
     {0, 0},
-    {1, 2},
-    {1, 5},
-    {5, 5},
-    {5, 10},
-    {1, 1}};
+    {0.1, 0},
+    {0.2, 0.1},
+    {0.2, 0.2}
+    };
 
 /*
   Odometry && Gyro Integration with teleoperate
@@ -503,7 +502,7 @@ public:
     Car(const Vector2D initial_position, const Vector2D initial_velocity)
     {
         this->distance_pid_controller =  new PIDController(0.1f, 0.01f, 0.0f, 0.1f);
-        this->angle_pid_controller = new PIDController(250, 30, 0.0f, 0.1f);
+        this->angle_pid_controller = new PIDController(100, 20, 0.0f, 0.1f);
         this->velocity_pid_controller = new PIDController(2800, 180, 0.0f, 0.1f);
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
@@ -539,7 +538,7 @@ public:
         this->target_direction = theta;
     }
 
-    void update_position(int axis=rotateAxis::middle)
+    void update_position(int axis=rotateAxis::right)
     {
         this->leftMotor = 0;
         this->rightMotor = 0;
@@ -568,11 +567,11 @@ public:
 
         switch (axis)
         {
-        case right:
+        case rotateAxis::right:
             this->leftMotor = 0;
             this->rightMotor = (int)angle_control_signal;
             break;
-        case left:
+        case rotateAxis::left:
             // Apply the control signal to the motors
             this->leftMotor = (int)-1 * angle_control_signal;
             this->rightMotor = 0;
@@ -621,7 +620,7 @@ bool started = false;
 Vector2D initial_pos(0, 0);
 int section_index = 0;
 
-Vector2D initial_velocity(-1, 0);
+Vector2D initial_velocity(0, 1);
 float velocity = initial_velocity.norm();
 Vector2D current_pos(0, 0);
 Car car(initial_pos, initial_velocity);
@@ -641,6 +640,7 @@ void setup()
     Serial.begin(9600);
     Wire.begin();
     // initialize serial:
+    car.set_velocity(0.07);
     Ts = 0.01;
 }
 
@@ -671,8 +671,10 @@ void smooth_motion(float pass_section_threshole = 0.05)
         current_section = getSection(path, section_index);
     }
     new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
-    if (carState != CarState::rotating)
-        car.set_direction(car.get_direction() + new_direction / 2);
+    Serial.print("New direction");
+    Serial.println(car.get_direction() + new_direction);
+    if ((carState != CarState::rotating) || (!polygon))
+        car.set_direction(car.get_direction() + new_direction);
 }
 
 void polygon_motion()
@@ -711,51 +713,61 @@ void polygon_motion()
 // }
 
 // //uncooment this for to test car
-void loop(){
-    car.set_velocity(0.07);
-    car.set_direction(PI/2);
-    car.update_position();
-    // Serial.println("Debug: update");
-    car.positionHandler->update(true);
-    Serial.print("x: ");
-    Serial.println(car.positionHandler->getx(true));
-    Serial.print("y: ");
-    Serial.println(car.positionHandler->gety(true));
-    Serial.print("theta: ");
-    Serial.println(car.positionHandler->getTheta(true));
-    Serial.print("Velocity: ");
-    Serial.println(car.get_velocity());
-delay(100);
-}
+// void loop(){
+//     car.set_velocity(0);
+//     car.set_direction(2*PI);
+//     car.update_position(rotateAxis::middle);
+//     // Serial.println("Debug: update");
+//     car.positionHandler->update(true);
+//     Serial.print("x: ");
+//     Serial.println(car.positionHandler->getx(true));
+//     Serial.print("y: ");
+//     Serial.println(car.positionHandler->gety(true));
+//     Serial.print("theta: ");
+//     Serial.println(car.positionHandler->getTheta(true));
+//     Serial.print("Velocity: ");
+//     Serial.println(car.get_velocity());
+// delay(100);
+// }
 
 // //uncomment this for path controll
-// void loop()
-// {
-//     if (carState != CarState::done)
-//     {
+bool printed_done = false;
+void loop()
+{
+    if (carState != CarState::done)
+    {
 
-//         if (started)
-//         {
-//             if (polygon)
-//             {
-//                 polygon_motion();
-//             }
-//             else
-//             {
-//                 smooth_motion();
-//             }
-//             car.update_position();
-//             print_vec(car.get_position());
-//         }
-//         else
-//         {
-//             init_connection();
-//         }
-//     }
-//     else
-//     {
-//         Serial.println("done");
-//     }
+            if (polygon)
+            {
+                polygon_motion();
+            }
+            else
+            {
+                smooth_motion();
+            }
+            car.update_position();
+        Serial.print("Position: ");
+        print_vec(car.get_position());
+        // Serial.print("x: ");
+        // Serial.println(car.positionHandler->getx(true));
+        // Serial.print("y: ");
+        // Serial.println(car.positionHandler->gety(true));
+        // Serial.print("theta: ");
+        // Serial.println(car.positionHandler->getTheta(true));
+        // Serial.print("Velocity: ");
+        // Serial.println(car.get_velocity());
+    }
+    else
+    {
+     if (!printed_done){
+ motors.setLeftSpeed(0);
+        motors.setRightSpeed(0);   
+        Serial.println("done");
+        printed_done = true;
+     }
+       
+    }
 
-//     delay(10);
-// }
+
+delay(100);
+}
