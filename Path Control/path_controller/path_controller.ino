@@ -61,7 +61,7 @@ public:
         this->kd = Kd;
         this->Ts = 0;
         this->alpha = Alpha;
-        this->integral = 0.0;
+        this->integral = 0;
         this->prev_error = 0.0;
         this->prev_derivative = 0.0;
         this->derivative = 0.0;
@@ -77,6 +77,7 @@ public:
         unsigned long current_time = millis();
         float dt = (current_time - last_time) / 1000.0; // convert to seconds
         this->last_time = current_time;
+  
 
         // Update Ts
         this->Ts = dt;
@@ -85,7 +86,7 @@ public:
         float error = setpoint - process_variable;
 
         // Calculate integral term
-        this->integral += error * this->Ts;
+        this->integral += error * dt;
 
         // Calculate derivative term with FIR filter
         this->derivative = (error - this->prev_error) / this->Ts;
@@ -93,7 +94,6 @@ public:
 
         // Calculate control signal
         float control_signal = this->kp * error + this->ki * this->integral + this->kd * this->filtered_derivative;
-
         // Store previous error and derivative for next iteration
         this->prev_error = error;
         this->prev_derivative = this->filtered_derivative;
@@ -226,8 +226,8 @@ public:
             d_theta = float(dx_1 - dx_2) / WHEELS_DISTANCE;
         }
 
-        this->posx += cos(theta + d_theta / 2) * (dx_1 + dx_2) / 2;
-        this->posy += sin(theta + d_theta / 2) * (dx_1 + dx_2) / 2;
+        this->posx += (cos(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
+        this->posy += (sin(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
         this->theta += d_theta;
     }
 };
@@ -258,13 +258,11 @@ public:
         
         if (this->external_theta)
         {
-            Serial.println("external");
             this->theta = gyroHandler->gyroIntegration(motorsState);
             odometryHandler->odometry(motorsState, this->theta);
         }
         else
         {
-            Serial.println("No external");
             odometryHandler->odometry(motorsState);
             this->theta = odometryHandler->theta;
         }
@@ -505,8 +503,8 @@ public:
     Car(const Vector2D initial_position, const Vector2D initial_velocity)
     {
         this->distance_pid_controller =  new PIDController(0.1f, 0.01f, 0.0f, 0.1f);
-        this->angle_pid_controller = new PIDController(3.0f, 0.2f, 0.0f, 0.1f);
-        this->velocity_pid_controller = new PIDController(400, 0.1f, 0.0f, 0.1f);
+        this->angle_pid_controller = new PIDController(250, 30, 0.0f, 0.1f);
+        this->velocity_pid_controller = new PIDController(2800, 180, 0.0f, 0.1f);
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
         this->velocity = initial_velocity.norm();
@@ -543,21 +541,30 @@ public:
 
     void update_position(int axis=rotateAxis::middle)
     {
+        this->leftMotor = 0;
+        this->rightMotor = 0;
         motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
+        positionHandler->update(motorsState);
         this->direction = positionHandler->getTheta(motorsState);
         float x = positionHandler->getx(motorsState);
         float y = positionHandler->gety(motorsState);
         unsigned long current_time = millis();
         float dt = (current_time - this->last_time) / 1000.0; // convert to seconds
+        this->last_time = current_time;
         this->last_position = this->position;
         this->position = Vector2D(x, y);
-        this->velocity = abs((this->last_position - this->position).norm() / dt);
-
+        this->velocity = (this->last_position - this->position).norm() / dt;
+    // print_vec(this->last_position - this->position);
+    // Serial.println("Velocity");
         // int16_t leftCount = encoders.getCountsAndResetLeft();
         // int16_t RightCount = encoders.getCountsAndResetRight();
         // this->velocity = ((leftCount + RightCount) / 2) * encoder2dist / dt;
-        float velocity_control_signal = velocity_pid_controller->pid_control(this->velocity, this->target_velocity);
+        float velocity_control_signal = velocity_pid_controller->pid_control(this->target_velocity, this->velocity);
+        if (velocity_control_signal < 0){
+            velocity_control_signal = 0;
+        }
         float angle_control_signal = angle_pid_controller->pid_control(this->target_direction, this->direction);
+
 
         switch (axis)
         {
@@ -574,15 +581,23 @@ public:
 
         default:
             // Apply the control signal to the motors
-            this->leftMotor = (int)-1 * angle_control_signal / 2;
+            this->leftMotor = (int)((-1) * angle_control_signal) / 2;
             this->rightMotor = (int)angle_control_signal / 2;
+
+        
             break;
         }
-        this->leftMotor = (int)((velocity_control_signal + leftMotor) / 2);
-        this->rightMotor = (int)((velocity_control_signal + rightMotor) / 2);
+    if (this->target_velocity != 0){
+        this->leftMotor = (int)((velocity_control_signal + this->leftMotor) );
+        this->rightMotor = (int)((velocity_control_signal+ this->rightMotor));
+    }
+        //     Serial.print("control signal:");
+        // Serial.println(velocity_control_signal);
+        // Serial.println(this->leftMotor);
+        // Serial.println(this->rightMotor);
+
         motors.setLeftSpeed(this->leftMotor);
         motors.setRightSpeed(this->rightMotor);
-        delay(dt * 1000);
     }
 };
 
@@ -682,25 +697,36 @@ void polygon_motion()
     }
 }
 
-//uncommen this for position handler checking
+// //uncommen this for position handler checking
+// void loop(){
+//     // Serial.println("Debug: update");
+//     car.positionHandler->update(true);
+//     Serial.print("x: ");
+//     Serial.print(car.positionHandler->getx(true));
+//     Serial.print("y: ");
+//     Serial.print(car.positionHandler->gety(true));
+//     Serial.print("theta: ");
+//     Serial.println(car.positionHandler->getTheta(true));
+// delay(100);
+// }
+
+// //uncooment this for to test car
 void loop(){
+    car.set_velocity(0.07);
+    car.set_direction(PI/2);
+    car.update_position();
     // Serial.println("Debug: update");
     car.positionHandler->update(true);
     Serial.print("x: ");
-    Serial.print(car.positionHandler->getx(true));
+    Serial.println(car.positionHandler->getx(true));
     Serial.print("y: ");
-    Serial.print(car.positionHandler->gety(true));
+    Serial.println(car.positionHandler->gety(true));
     Serial.print("theta: ");
     Serial.println(car.positionHandler->getTheta(true));
+    Serial.print("Velocity: ");
+    Serial.println(car.get_velocity());
 delay(100);
 }
-
-// //uncooment this for to test car
-// void loop(){
-//     car.set_velocity(0);
-//     car.set_direction(PI/2);
-// delay(100);
-// }
 
 // //uncomment this for path controll
 // void loop()
