@@ -34,7 +34,7 @@ Zumo32U4IMU imu;
 #define WHEELS_DISTANCE 98                                               // Distance between tracks
 #define WHEEL_DIAMETER 37.5                                              // Wheels diameter measured 38.5
 #define ENCODER_PPR 12                                                   // Encoder pulses per revolution
-#define GYRO_SCALE 360 / 50829.33                                        // 70 mdps/LSB
+#define GYRO_SCALE 2*PI / 50829.33                                        // 70 mdps/LSB
 float encoder2dist = WHEEL_DIAMETER * 3.14 / (ENCODER_PPR * GEAR_RATIO); // conversition of encoder pulses to distance in mm
 
 class PIDController
@@ -117,14 +117,14 @@ public:
 
     GyroHandler()
     {
-        if (!imu.init())
-        {
-            // Failed to detect the compass.
-            ledRed(1);
+        // if (!imu.init())
+        // {
+        //     Failed to detect the compass.
+        //     ledRed(1);
 
-            Serial.println(F("Failed to initialize IMU sensors."));
-            delay(100);
-        }
+        //     Serial.println("Failed to initialize IMU sensors.");
+        //     delay(100);
+        // }
 
         imu.enableDefault();
         //        imu.configureForTurnSensing();
@@ -142,13 +142,13 @@ public:
     // gyro calibration
     void gyroOffset()
     {
-        delay(1); // delay before starting gyro readings for offset
         int32_t total = 0;
-        for (uint16_t i = 0; i < 1024; i++)
+        for (int i = 0; i < 1024; i++)
         {
-            // Wait for new data to be available, then read it.
-            while (!imu.gyroDataReady())
+            // // Wait for new data to be available, then read it.
+            if (!imu.gyroDataReady())
             {
+                Serial.println("There is an error with the gyro");
             }
             imu.readGyro();
 
@@ -161,7 +161,6 @@ public:
     // gyro calibration
     void angleOffset()
     {
-        delay(1); // delay before starting gyro readings for offset
         float total = 0;
         for (uint16_t i = 0; i < 1024; i++)
         {
@@ -178,8 +177,10 @@ public:
         this->update_dt();
         imu.readGyro();
         this->gyroz = ((float)(imu.g.z - (float)this->gyroOffset_z)) * GYRO_SCALE;
-        if (motorsState)
-            this->gyroAngle += (float)(this->gyroz * this->dt_time); // integrate when in motion
+        if (motorsState){
+this->gyroAngle += (float)(this->gyroz * this->dt_time); // integrate when in motion
+        }
+            
         return this->gyroAngle;
     }
 
@@ -200,7 +201,7 @@ public:
     float posx;
     float posy;
     bool external_theta;
-    OdometryHandler(bool external_theta = true)
+    OdometryHandler(bool external_theta = false)
     {
         this->theta = 0;
         this->posx = 0;
@@ -242,26 +243,30 @@ private:
     GyroHandler *gyroHandler;
 
 public:
-    PositionHandler(bool external_theta = true)
+    PositionHandler(bool external_theta = false)
     {
         this->theta = 0;
         this->posx = 0;
         this->posy = 0;
         this->external_theta = external_theta;
         this->gyroHandler = new GyroHandler();
-        this->odometryHandler = new OdometryHandler();
+        this->odometryHandler = new OdometryHandler(external_theta);
     }
 
     void update(bool motorsState)
     {
-        this->theta = gyroHandler->gyroIntegration(motorsState);
+        
         if (this->external_theta)
         {
+            Serial.println("external");
+            this->theta = gyroHandler->gyroIntegration(motorsState);
             odometryHandler->odometry(motorsState, this->theta);
         }
         else
         {
+            Serial.println("No external");
             odometryHandler->odometry(motorsState);
+            this->theta = odometryHandler->theta;
         }
         this->posx = this->odometryHandler->posx;
         this->posy = this->odometryHandler->posy;
@@ -269,18 +274,15 @@ public:
 
     float getx(bool motorsState)
     {
-        this->update(motorsState);
         return this->posx;
     }
 
     float gety(bool motorsState)
-    {
-        this->update(motorsState);
+    {;
         return this->posy;
     }
     float getTheta(bool motorsState)
     {
-        this->update(motorsState);
         return this->theta;
     }
 };
@@ -508,7 +510,7 @@ public:
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
         this->velocity = initial_velocity.norm();
-        this->positionHandler = new PositionHandler(true);
+        this->positionHandler = new PositionHandler(false);
         this->leftMotor = 0;
         this->rightMotor = 0;
     }
@@ -680,16 +682,18 @@ void polygon_motion()
     }
 }
 
-// //uncommen this for position handler checking
-// void loop(){
-//     Serial.print("x: ");
-//     Serial.print(car.positionHandler->getx(true));
-//     Serial.print("y: ");
-//     Serial.print(car.positionHandler->gety(true));
-//     Serial.print("theta: ");
-//     Serial.println(car.positionHandler->getTheta(true));
-
-// }
+//uncommen this for position handler checking
+void loop(){
+    // Serial.println("Debug: update");
+    car.positionHandler->update(true);
+    Serial.print("x: ");
+    Serial.print(car.positionHandler->getx(true));
+    Serial.print("y: ");
+    Serial.print(car.positionHandler->gety(true));
+    Serial.print("theta: ");
+    Serial.println(car.positionHandler->getTheta(true));
+delay(100);
+}
 
 // //uncooment this for to test car
 // void loop(){
