@@ -1,0 +1,5 @@
+{
+    "port": "COM3",
+    "board": "arduino:avr:uno",
+    "sketch": "vec\\arduino_uno_simulation\\arduino_uno_simulation.ino"
+}
