@@ -8,14 +8,16 @@
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
-#define PATH_LENGTH 3
+#define PATH_LENGTH 5
 
-float path[PATH_LENGTH][4] = {
+float path[PATH_LENGTH][2] = {
     {0, 0},
-    {0.1, 0},
-    {0.2, 0.1},
-    {0.2, 0.2}
+    {0.3, 0},
+    {0.3, 0.3},
+    {0, 0.3},
+    {0, 0}
     };
+
 
 /*
   Odometry && Gyro Integration with teleoperate
@@ -33,7 +35,7 @@ Zumo32U4IMU imu;
 #define WHEELS_DISTANCE 98                                               // Distance between tracks
 #define WHEEL_DIAMETER 37.5                                              // Wheels diameter measured 38.5
 #define ENCODER_PPR 12                                                   // Encoder pulses per revolution
-#define GYRO_SCALE 2*PI / 50829.33                                        // 70 mdps/LSB
+#define GYRO_SCALE 2*PI / 5000.87                                        // 70 mdps/LSB
 float encoder2dist = WHEEL_DIAMETER * 3.14 / (ENCODER_PPR * GEAR_RATIO); // conversition of encoder pulses to distance in mm
 
 class PIDController
@@ -116,26 +118,16 @@ public:
 
     GyroHandler()
     {
-        // if (!imu.init())
-        // {
-        //     Failed to detect the compass.
-        //     ledRed(1);
-
-        //     Serial.println("Failed to initialize IMU sensors.");
-        //     delay(100);
-        // }
-
-        imu.enableDefault();
-        //        imu.configureForTurnSensing();
-
+        // imu.init();
+        // imu.enableDefault();
+        // imu.configureForTurnSensing();
         this->gyroAngle = 0;
-        //        this->gyroOffset_z = -16;
         this->gyroz = 0;
         // take time stamp
         this->lastMillis = millis();
         this->lastMicros = micros();
-        this->gyroOffset();
-        this->angleOffset();
+        // this->gyroOffset();
+        // this->angleOffset();
     }
 
     // gyro calibration
@@ -172,12 +164,12 @@ public:
     // gyroIntegration
     float gyroIntegration(bool motorsState)
     {
-        //(90.0/1283.0 / 717.0)*90
+imu.readGyro();        
         this->update_dt();
-        imu.readGyro();
-        this->gyroz = ((float)(imu.g.z - (float)this->gyroOffset_z)) * GYRO_SCALE;
+
+        this->gyroz = ((float) (imu.g.z - (int16_t)gyroOffset_z))*GYRO_SCALE;
         if (motorsState){
-this->gyroAngle += (float)(this->gyroz * this->dt_time); // integrate when in motion
+            this->gyroAngle += (float)(this->gyroz * this->dt_time); // integrate when in motion
         }
             
         return this->gyroAngle;
@@ -269,16 +261,16 @@ public:
         this->posy = this->odometryHandler->posy;
     }
 
-    float getx(bool motorsState)
+    float getx()
     {
         return this->posx;
     }
 
-    float gety(bool motorsState)
+    float gety()
     {;
         return this->posy;
     }
-    float getTheta(bool motorsState)
+    float getTheta()
     {
         return this->theta;
     }
@@ -507,9 +499,9 @@ public:
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
         this->velocity = initial_velocity.norm();
-        this->positionHandler = new PositionHandler(false);
-        this->leftMotor = 0;
-        this->rightMotor = 0;
+        this->positionHandler = new PositionHandler(true);
+        this->leftMotor = 1;
+        this->rightMotor = 1;
     }
     Vector2D get_position()
     {
@@ -540,13 +532,13 @@ public:
 
     void update_position(int axis=rotateAxis::right)
     {
-        this->leftMotor = 0;
-        this->rightMotor = 0;
+        // this->leftMotor = 0;
+        // this->rightMotor = 0;
         motorsState = (leftMotor || rightMotor) == 0 ? 0 : 1;
-        positionHandler->update(motorsState);
-        this->direction = positionHandler->getTheta(motorsState);
-        float x = positionHandler->getx(motorsState);
-        float y = positionHandler->gety(motorsState);
+        positionHandler->update(true);
+        this->direction = positionHandler->getTheta();
+        float x = positionHandler->getx();
+        float y = positionHandler->gety();
         unsigned long current_time = millis();
         float dt = (current_time - this->last_time) / 1000.0; // convert to seconds
         this->last_time = current_time;
@@ -608,7 +600,7 @@ enum CarState
     done
 };
 // if it should move as a polygon motion or smooth
-bool polygon = false;
+bool polygon = true;
 // other intial states
 /// Start ///
 bool motorsState;
@@ -620,7 +612,7 @@ bool started = false;
 Vector2D initial_pos(0, 0);
 int section_index = 0;
 
-Vector2D initial_velocity(0, 1);
+Vector2D initial_velocity(0, 0.07);
 float velocity = initial_velocity.norm();
 Vector2D current_pos(0, 0);
 Car car(initial_pos, initial_velocity);
@@ -639,8 +631,11 @@ void setup()
     // initialize serial:
     Serial.begin(9600);
     Wire.begin();
+  imu.init();
+  imu.enableDefault();
+  imu.configureForTurnSensing();
     // initialize serial:
-    car.set_velocity(0.07);
+    car.set_velocity(initial_velocity.norm());
     Ts = 0.01;
 }
 
@@ -704,15 +699,15 @@ void polygon_motion()
 //     // Serial.println("Debug: update");
 //     car.positionHandler->update(true);
 //     Serial.print("x: ");
-//     Serial.print(car.positionHandler->getx(true));
+//     Serial.print(car.positionHandler->getx());
 //     Serial.print("y: ");
-//     Serial.print(car.positionHandler->gety(true));
-//     Serial.print("theta: ");
-//     Serial.println(car.positionHandler->getTheta(true));
+//     Serial.print(car.positionHandler->gety());
+//     Serial.println("theta: ");
+//     Serial.println(car.positionHandler->getTheta());
 // delay(100);
 // }
 
-// //uncooment this for to test car
+//uncooment this for to test car
 // void loop(){
 //     car.set_velocity(0);
 //     car.set_direction(2*PI);
@@ -720,11 +715,11 @@ void polygon_motion()
 //     // Serial.println("Debug: update");
 //     car.positionHandler->update(true);
 //     Serial.print("x: ");
-//     Serial.println(car.positionHandler->getx(true));
+//     Serial.println(car.positionHandler->getx());
 //     Serial.print("y: ");
-//     Serial.println(car.positionHandler->gety(true));
+//     Serial.println(car.positionHandler->gety());
 //     Serial.print("theta: ");
-//     Serial.println(car.positionHandler->getTheta(true));
+//     Serial.println(car.positionHandler->getTheta());
 //     Serial.print("Velocity: ");
 //     Serial.println(car.get_velocity());
 // delay(100);
@@ -749,11 +744,11 @@ void loop()
         Serial.print("Position: ");
         print_vec(car.get_position());
         // Serial.print("x: ");
-        // Serial.println(car.positionHandler->getx(true));
+        // Serial.println(car.positionHandler->getx());
         // Serial.print("y: ");
-        // Serial.println(car.positionHandler->gety(true));
+        // Serial.println(car.positionHandler->gety());
         // Serial.print("theta: ");
-        // Serial.println(car.positionHandler->getTheta(true));
+        // Serial.println(car.positionHandler->getTheta());
         // Serial.print("Velocity: ");
         // Serial.println(car.get_velocity());
     }
@@ -770,4 +765,5 @@ void loop()
 
 
 delay(100);
+
 }
