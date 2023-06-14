@@ -5,15 +5,9 @@
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
-#define PATH_LENGTH 6
-
-float path[PATH_LENGTH][2] = {
-    {0, 0},
-    {1, 2},
-    {1, 5},
-    {5, 5},
-    {5, 10},
-    {1, 1}};
+#define PATH_MAX_LENGTH 60
+int path_length = 10;
+float path[PATH_MAX_LENGTH][2];
 
 class Vector2D
 {
@@ -130,7 +124,7 @@ int find_next_section(float path[][2], Vector2D position, int current_index, flo
     Vector2D p2(path[current_index + 1][0], path[current_index + 1][1]);
     Line line(p1, p2);
 
-    if (current_index == PATH_LENGTH - 2)
+    if (current_index == path_length - 2)
         return current_index;
 
     bool have_passed_section = passed_section(line, position);
@@ -188,7 +182,7 @@ Line getSection(float path[][2], int index)
 
 bool finished(Line section, Vector2D position, int index, float threshole = 0.05)
 {
-    if (index + 2 < PATH_LENGTH)
+    if (index + 2 < path_length)
         return false;
     return about_to_pass_section(section, position, threshole);
 }
@@ -244,8 +238,7 @@ enum CarState
     done
 };
 // if it should move as a polygon motion or smooth
-bool polygon = false;
-
+bool polygon = true;
 // other intial states
 int carState = CarState::rotating;
 bool started = false;
@@ -268,10 +261,14 @@ void print_vec(Vector2D vec)
     Serial.println(vec.y);
 }
 
-void setup()
+void print_path()
 {
-    // initialize serial:
-    Serial.begin(9600);
+
+    for (int i = 0; i < path_length; i++)
+    {
+        Serial.print("Staring to print path");
+        print_vec(Vector2D(path[i][0], path[i][1]));
+    }
 }
 
 bool init_connection()
@@ -282,6 +279,8 @@ bool init_connection()
         if (teststr.indexOf("run") >= 0)
         {
             started = true;
+            Serial.println("debug: print path");
+            print_path();
             Serial.println("running");
         }
     }
@@ -294,15 +293,17 @@ void smooth_motion(float pass_section_threshole = 0.05)
         carState = CarState::done;
 
     // find next section
-    if (about_to_pass_section(current_section, car.position, pass_section_threshole) && ((section_index + 2) < PATH_LENGTH))
+    if (about_to_pass_section(current_section, car.position, pass_section_threshole) && ((section_index + 2) < path_length))
     {
         section_index++;
         carState = CarState::rotating;
         current_section = getSection(path, section_index);
+        Serial.print("debug: new target point: ");
+        print_vec(current_section.p2);
+        Serial.println();
     }
     new_direction = next_point_controller(current_section.p2, car.position, car.get_velocity_vector());
-    if (carState != CarState::rotating)
-        car.set_direction(car.get_direction() + new_direction / 2);
+    car.set_direction(car.get_direction() + new_direction / 3);
 }
 
 void polygon_motion()
@@ -322,20 +323,61 @@ void polygon_motion()
         float target_angle = car.get_direction() + new_direction;
         car.velocity = 0;
         car.set_direction(target_angle);
-        if (fmod(abs(car.direction - target_angle), (float)(2 * PI)) < epsilon)
+        if (fmod(abs(car.direction - target_angle), (float)(2 * PI)) < epsilon){
             carState = driving;
+            car.velocity = velocity;
+        }
+            
     }
+
+    print_vec(car.position);
+    car.update_position(dt);
+}
+
+void get_circle_path(float radius, float path[][2])
+{
+    float angle_increasment = (2 * PI) / ((float) (path_length-1) );
+    Serial.print("Angle inc");
+    Serial.println(angle_increasment);
+    float x, y;
+    int angle = 0;
+    int i;
+    for (i = 0; i < path_length; i++)
+    {
+        x = radius * (cos(angle)-1);
+        y = radius * sin(angle);
+        angle += angle_increasment;
+        path[i][0] = x;
+        path[i][1] = y;
+    }
+    for (i = i; i < PATH_MAX_LENGTH; i++)
+    {
+        path[i][0] = 0;
+        path[i][1] = 0;
+    }
+}
+
+void setup()
+{
+    // initialize serial:
+    Serial.begin(9600);
+    get_circle_path(2, path);
+    current_section = getSection(path, section_index);
+    //initiating first direction 
+    polygon_motion();
 }
 
 void loop()
 {
+    //     Serial.print("started");
+    // Serial.println(started);
     if (carState != CarState::done)
     {
-
         if (started)
         {
             if (polygon)
             {
+
                 polygon_motion();
             }
             else
@@ -355,5 +397,5 @@ void loop()
         Serial.println("done");
     }
 
-    delay(10);
+    delay(100);
 }

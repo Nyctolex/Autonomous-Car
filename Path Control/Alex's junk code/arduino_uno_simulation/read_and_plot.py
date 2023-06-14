@@ -2,6 +2,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import serial
 
+def is_point(string):
+    for char in string:
+        if not (char.isdigit() or char == '.' or char == ',' or char == '-'):
+            return False
+    return True
 
 def readserial(comport, baudrate):
     max_itterations = 600
@@ -27,14 +32,15 @@ def readserial(comport, baudrate):
                     done = True
                     print("is done")
                     break
-                elif "debug" in data:
+                elif not is_point(data):
                     print(data)
+                    
                 elif connection_initiated:
                     x, y= to_point(data)
                     x_path.append(x)
                     y_path.append(y)
+                    print(data, itteration)
                     itteration = itteration+1
-                print(data)
                  
         except:
             pass
