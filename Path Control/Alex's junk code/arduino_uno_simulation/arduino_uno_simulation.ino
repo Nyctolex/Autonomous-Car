@@ -20,18 +20,19 @@ Zumo32U4ButtonC buttonC;
 
 // uncomment for squre 
 // if it should move as a polygon motion or smooth
-#define PATH_LENGTH 5
-int path_length = 5;
-bool polygon = false;
 
-float path[PATH_LENGTH][2] = {
-    {0, 0},
-    {0, 0.3},
-    {-0.3, 0.3},
-    {-0.3, 0},
-    {0, 0}
-    };
-// float path[PATH_MAX_LENGTH][2];
+int path_length = 8;
+bool polygon = false;
+// #define PATH_LENGTH 5
+// float path[PATH_LENGTH][2] = {
+//     {0, 0},
+//     {0, 0.3},
+//     {-0.3, 0.3},
+//     {-0.3, 0},
+//     {0, 0}
+//     };
+
+float path[PATH_MAX_LENGTH][2];
 
 //uncomment for circle
 // if it should move as a polygon motion or smooth
@@ -505,7 +506,7 @@ float next_point_controller(Vector2D point, Vector2D position, Vector2D velocity
     Vector2D pointing_vector = point - position;
     float angle = inner_angle(velocity_vector, pointing_vector);
     
-    return (is_clock_wise_angle(pointing_vector, velocity_vector)) ? angle : -1 * angle;
+    return (is_clock_wise_angle(pointing_vector.norm(), velocity_vector.norm())) ? -1*angle : angle;
 }
 
 Line getSection(float path[][2], int index)
@@ -665,7 +666,7 @@ bool motorsState;
 float Ts;
 int axis = middle;
 
-int carState = CarState::initiating;
+int carState = CarState::driving;
 bool started = false;
 Vector2D initial_pos(0, 0);
 int section_index = 0;
@@ -704,12 +705,15 @@ void rotate(){
         Serial.println("debug: ----------rotating--------------");
         new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
         float target_angle = car.get_direction() + new_direction;
+        Serial.print("New Rotation theta direction");
+        Serial.println(target_angle);
+
         car.set_velocity(0);
         car.set_direction(target_angle);
         if (fmod(abs(car.get_direction() - target_angle), (float)(2 * PI)) < epsilon){
             carState = CarState::driving;
             Serial.println("------------Debug: CarState is driving-----------");
-            car.set_velocity(velocity);
+            car.set_velocity(initial_velocity.norm());
         }
             
 }
@@ -733,10 +737,11 @@ void smooth_motion(float pass_section_threshole = 0.05)
     Serial.print("New direction");
     Serial.println(new_direction);
 
-    if (carState == CarState::initiating)
+    if ((carState == CarState::initiating)  && (!polygon))
         rotate();
 
     if ((carState != CarState::rotating) || (!polygon)){
+        car.set_velocity(velocity);
         car.set_direction(car.get_direction() + new_direction);
     }
         
@@ -746,7 +751,7 @@ void polygon_motion()
 {
     // run simulation
     // set velocity to zero and roatate car
-    if ((carState == CarState::initiating) && (!polygon))
+    if (carState == CarState::initiating)
         rotate();
     if (carState == CarState::driving)
     {
@@ -759,13 +764,13 @@ void polygon_motion()
     }
 }
 
-void get_circle_path(float radius, float path[][2])
+void get_circle_path(float radius)
 {
     float angle_increasment = (2 * PI) / ((float) (path_length-1) );
     Serial.print("Angle inc");
     Serial.println(angle_increasment);
     float x, y;
-    int angle = 0;
+    float angle = 0;
     int i;
     for (i = 0; i < path_length; i++)
     {
@@ -774,6 +779,8 @@ void get_circle_path(float radius, float path[][2])
         angle += angle_increasment;
         path[i][0] = x;
         path[i][1] = y;
+        Serial.println("Circle: ");
+        print_vec(Vector2D(path[i][0], path[i][1]));
     }
     for (i = i; i < PATH_MAX_LENGTH; i++)
     {
@@ -786,8 +793,8 @@ void setup()
 {
     // initialize serial:
     Serial.begin(9600);
-    // get_circle_path(0.3, path);
     buttonB.waitForButton();
+    get_circle_path(0.3);
     Wire.begin();
   imu.init();
   imu.enableDefault();
@@ -795,10 +802,10 @@ void setup()
     // initialize serial:
     current_section = getSection(path, section_index);
     car.set_velocity(velocity);
-    car.positionHandler->reset(0, 0, PI/2);
+    car.positionHandler->reset(0, 0, inner_angle(car.get_velocity_vector()));
     Ts = 0.01;
     
-    Serial.print("------------Debug: Next Target point-----------");
+    Serial.print("------------Debug: Next Target point-----------     ");
     print_vec(current_section.p2);
 }
 
