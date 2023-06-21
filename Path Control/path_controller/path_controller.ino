@@ -27,9 +27,9 @@ enum PathShape
     circleShape = 1
 };
 
-int path_length = 5;
+int path_length = 10;
 int path_shape = PathShape::squareShape;
-bool polygon = true;
+bool polygon = false;
 // #define PATH_LENGTH 5
 // float path[PATH_LENGTH][2] = {
 //     {0, 0},
@@ -236,6 +236,12 @@ public:
         this->external_theta = external_theta;
     }
 
+    void reset(float theta = 0){
+        this->theta = theta;
+        this->posx = 0;
+        this->posy = 0;
+    }
+
     void odometry(bool motorsState, float new_theta = 0)
     {
         // encoder read
@@ -265,25 +271,25 @@ private:
     float theta;
     float posx;
     float posy;
-    bool external_theta;
+    bool gyro_theta;
     OdometryHandler *odometryHandler;
     GyroHandler *gyroHandler;
 
 public:
-    PositionHandler(bool external_theta = true)
+    PositionHandler(bool gyro_theta = false)
     {
         this->theta = 0;
         this->posx = 0;
         this->posy = 0;
-        this->external_theta = external_theta;
+        this->gyro_theta = gyro_theta;
         this->gyroHandler = new GyroHandler();
-        this->odometryHandler = new OdometryHandler(external_theta);
+        this->odometryHandler = new OdometryHandler(gyro_theta);
     }
 
     void update(bool motorsState)
     {
         
-        if (this->external_theta)
+        if (this->gyro_theta)
         {
             this->theta = gyroHandler->gyroIntegration(motorsState);
             odometryHandler->odometry(motorsState, this->theta);
@@ -301,6 +307,7 @@ public:
         this->posx = x;
         this->posy = y;
         this->theta = angle;
+        this->odometryHandler->reset(angle);
         this->gyroHandler->reset(angle);
     }
 
@@ -558,13 +565,13 @@ public:
     Car(const Vector2D initial_position, const Vector2D initial_velocity)
     {
         this->distance_pid_controller =  new PIDController(0.1f, 0.01f, 0.0f, 0.1f);
-        this->angle_pid_controller = new PIDController(0, 0, 0.0f, 0.1f);
-        this->sharp_angle_pid_controller = new PIDController(180, 40, 0.0f, 0.1f);
+        this->angle_pid_controller = new PIDController(160, 40, 0.0f, 0.1f);
+        this->sharp_angle_pid_controller = new PIDController(160, 40, 0.0f, 0.1f);
         this->velocity_pid_controller = new PIDController(2800, 180, 0.0f, 0.1f);
         this->position = initial_position;
         this->direction = inner_angle(initial_velocity);
         this->velocity = initial_velocity.norm();
-        this->positionHandler = new PositionHandler(true);
+        this->positionHandler = new PositionHandler(false);
         this->leftMotor = 1;
         this->rightMotor = 1;
         this->state = CarState::driving;
@@ -845,7 +852,7 @@ void get_shape_path(int shape){
             get_square_path(0.2);
             break;
         default:
-            get_circle_path(0.3);
+            get_circle_path(0.2);
     }
 }
 
@@ -945,7 +952,5 @@ void loop()
     car.set_velocity(0);
   }
 
-
-delay(10);
 
 }
