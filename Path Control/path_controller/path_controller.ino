@@ -1,28 +1,38 @@
-#include <stdio.h>
+    #include <stdio.h>
 #include <math.h>
 #include <Wire.h>
 #include <Zumo32U4.h>
 #include <math.h>
+// zumo classes
+Zumo32U4Encoders encoders;
+Zumo32U4Motors motors;
+Zumo32U4IMU imu;
 
+Zumo32U4ButtonA buttonA;
+Zumo32U4ButtonB buttonB;
+Zumo32U4ButtonC buttonC;
 #define PI 3.14159265358979323846 /* pi */
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
-#define MAX_PATH_LENGTH 20
+#define PATH_MAX_LENGTH 50
 
 
 // uncomment for squre 
-if it should move as a polygon motion or smooth
-#define PATH_LENGTH 5
-bool polygon = true;
-float path[PATH_LENGTH][2] = {
-    {0, 0},
-    {0, 0.3},
-    {0.3, 0.3},
-    {0.3, 0},
-    {0, 0}
-    };
+// if it should move as a polygon motion or smooth
 
+int path_length = 8;
+bool polygon = false;
+// #define PATH_LENGTH 5
+// float path[PATH_LENGTH][2] = {
+//     {0, 0},
+//     {0, 0.3},
+//     {-0.3, 0.3},
+//     {-0.3, 0},
+//     {0, 0}
+//     };
+
+float path[PATH_MAX_LENGTH][2];
 
 //uncomment for circle
 // if it should move as a polygon motion or smooth
@@ -51,10 +61,7 @@ float path[PATH_LENGTH][2] = {
   Odometry && Gyro Integration with teleoperate
 */
 
-// zumo classes
-Zumo32U4Encoders encoders;
-Zumo32U4Motors motors;
-Zumo32U4IMU imu;
+
 
 // time variables
 #define SAMPLERATE 10 // 5 millis =  200 Hz
@@ -136,7 +143,7 @@ class GyroHandler
 private:
     // imu Fusion
     float gyroAngle = 0;
-    int32_t gyroOffset_z = -16;
+    int32_t gyroOffset_z = 0;
     float gyroz = 0;
     unsigned long lastMillis = 0;
     unsigned long lastMicros = 0;
@@ -154,8 +161,14 @@ public:
         // take time stamp
         this->lastMillis = millis();
         this->lastMicros = micros();
-        // this->gyroOffset();
-        // this->angleOffset();
+        this->gyroOffset();
+        this->angleOffset();
+        this->gyroAngle = PI/2;
+    }
+
+    reset(float angle){
+        this->gyroAngle = angle;
+        this->lastMicros = micros();
     }
 
     // gyro calibration
@@ -195,7 +208,7 @@ public:
 imu.readGyro();        
         this->update_dt();
 
-        this->gyroz = ((float) (imu.g.z - (int16_t)gyroOffset_z))*GYRO_SCALE;
+        this->gyroz = ((float) (imu.g.z - (int16_t)this->gyroOffset_z))*GYRO_SCALE;
         if (motorsState){
             this->gyroAngle += (float)(this->gyroz * this->dt_time); // integrate when in motion
         }
@@ -245,8 +258,8 @@ public:
             d_theta = float(dx_1 - dx_2) / WHEELS_DISTANCE;
         }
 
-        this->posy += (cos(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
-        this->posx += (sin(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
+        this->posy += (sin(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
+        this->posx += (cos(theta + d_theta / 2) * (dx_1 + dx_2) / 2)/1000;
         this->theta += d_theta;
     }
 };
@@ -262,7 +275,7 @@ private:
     GyroHandler *gyroHandler;
 
 public:
-    PositionHandler(bool external_theta = false)
+    PositionHandler(bool external_theta = true)
     {
         this->theta = 0;
         this->posx = 0;
@@ -287,6 +300,13 @@ public:
         }
         this->posx = this->odometryHandler->posx;
         this->posy = this->odometryHandler->posy;
+    }
+
+    void reset(float x, float y, float angle){
+        this->posx = x;
+        this->posy = y;
+        this->theta = angle;
+        this->gyroHandler->reset(angle);
     }
 
     float getx()
@@ -485,7 +505,8 @@ float next_point_controller(Vector2D point, Vector2D position, Vector2D velocity
     // Path controller which return the next direction for the car
     Vector2D pointing_vector = point - position;
     float angle = inner_angle(velocity_vector, pointing_vector);
-    return (is_clock_wise_angle(pointing_vector, velocity_vector)) ? angle : -1 * angle;
+    
+    return (is_clock_wise_angle(pointing_vector.norm(), velocity_vector.norm())) ? -1*angle : angle;
 }
 
 Line getSection(float path[][2], int index)
@@ -632,6 +653,7 @@ public:
 
 enum CarState
 {
+    initiating,
     driving,
     rotating,
     smooth,
@@ -663,18 +685,6 @@ void print_vec(Vector2D vec)
     Serial.println(vec.y);
 }
 
-void setup()
-{
-    // initialize serial:
-    Serial.begin(9600);
-    Wire.begin();
-  imu.init();
-  imu.enableDefault();
-  imu.configureForTurnSensing();
-    // initialize serial:
-    car.set_velocity(velocity);
-    Ts = 0.01;
-}
 
 bool init_connection()
 {
@@ -689,6 +699,25 @@ bool init_connection()
     }
 }
 
+
+void rotate(){
+    float epsilon = 0.4;
+        Serial.println("debug: ----------rotating--------------");
+        new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
+        float target_angle = car.get_direction() + new_direction;
+        Serial.print("New Rotation theta direction");
+        Serial.println(target_angle);
+
+        car.set_velocity(0);
+        car.set_direction(target_angle);
+        if (fmod(abs(car.get_direction() - target_angle), (float)(2 * PI)) < epsilon){
+            carState = CarState::driving;
+            Serial.println("------------Debug: CarState is driving-----------");
+            car.set_velocity(initial_velocity.norm());
+        }
+            
+}
+
 void smooth_motion(float pass_section_threshole = 0.05)
 {
     // run simulation
@@ -701,21 +730,29 @@ void smooth_motion(float pass_section_threshole = 0.05)
         section_index++;
         carState = CarState::rotating;
         current_section = getSection(path, section_index);
+        Serial.println("------------Debug: Next Target point-----------");
+        print_vec(current_section.p2);
     }
     new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
     Serial.print("New direction");
-    Serial.println(car.get_direction() + new_direction);
-        Serial.print("Next point: ");
-    print_vec(current_section.p2);
-    if ((carState != CarState::rotating) &&(!polygon))
+    Serial.println(new_direction);
+
+    if ((carState == CarState::initiating)  && (!polygon))
+        rotate();
+
+    if ((carState != CarState::rotating) || (!polygon)){
+        car.set_velocity(velocity);
         car.set_direction(car.get_direction() + new_direction);
+    }
+        
 }
 
 void polygon_motion()
 {
-    float epsilon = 0.4;
     // run simulation
     // set velocity to zero and roatate car
+    if (carState == CarState::initiating)
+        rotate();
     if (carState == CarState::driving)
     {
         car.set_velocity(velocity);
@@ -723,14 +760,53 @@ void polygon_motion()
     }
     if (carState == CarState::rotating)
     {
-        Serial.println("debug: ----------rotating--------------");
-        new_direction = next_point_controller(current_section.p2, car.get_position(), car.get_velocity_vector());
-        float target_angle = car.get_direction() + new_direction;
-        car.set_velocity(0);
-        car.set_direction(target_angle);
-        if (fmod(abs(car.get_direction() - target_angle), (float)(2 * PI)) < epsilon)
-            carState = CarState::driving;
+        rotate();
     }
+}
+
+void get_circle_path(float radius)
+{
+    float angle_increasment = (2 * PI) / ((float) (path_length-1) );
+    Serial.print("Angle inc");
+    Serial.println(angle_increasment);
+    float x, y;
+    float angle = 0;
+    int i;
+    for (i = 0; i < path_length; i++)
+    {
+        x = radius * (cos(angle)-1);
+        y = radius * sin(angle);
+        angle += angle_increasment;
+        path[i][0] = x;
+        path[i][1] = y;
+        Serial.println("Circle: ");
+        print_vec(Vector2D(path[i][0], path[i][1]));
+    }
+    for (i = i; i < PATH_MAX_LENGTH; i++)
+    {
+        path[i][0] = 0;
+        path[i][1] = 0;
+    }
+}
+
+void setup()
+{
+    // initialize serial:
+    Serial.begin(9600);
+    buttonB.waitForButton();
+    get_circle_path(0.3);
+    Wire.begin();
+  imu.init();
+  imu.enableDefault();
+  imu.configureForTurnSensing();
+    // initialize serial:
+    current_section = getSection(path, section_index);
+    car.set_velocity(velocity);
+    car.positionHandler->reset(0, 0, inner_angle(car.get_velocity_vector()));
+    Ts = 0.01;
+    
+    Serial.print("------------Debug: Next Target point-----------     ");
+    print_vec(current_section.p2);
 }
 
 // //uncommen this for position handler checking
@@ -784,27 +860,28 @@ void loop()
             
         Serial.print("Position: ");
         print_vec(car.get_position());
-        // Serial.print("x: ");
-        // Serial.println(car.positionHandler->getx());
-        // Serial.print("y: ");
-        // Serial.println(car.positionHandler->gety());
-        // Serial.print("theta: ");
-        // Serial.println(car.positionHandler->getTheta());
+        Serial.print("theta: ");
+        Serial.println(car.positionHandler->getTheta());
         // Serial.print("Velocity: ");
         // Serial.println(car.get_velocity());
     }
     else
     {
      if (!printed_done){
- motors.setLeftSpeed(0);
+        motors.setLeftSpeed(0);
         motors.setRightSpeed(0);   
         Serial.println("done");
         printed_done = true;
      }
        
     }
+  if (buttonB.isPressed())
+  {
+    carState = CarState::done;
+    car.set_velocity(0);
+  }
 
 
-delay(100);
+delay(10);
 
 }
